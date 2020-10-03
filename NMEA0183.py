@@ -2,31 +2,13 @@
 #-*- coding: utf-8 -*-
 
 import re
-import serial
 import binascii
 from threading import Thread
 
 
 class NMEA0183():
-
-
-	def __init__(self, location, baud_rate, timeout):
-		'''
-		Initiates variables.
-		
-		Keyword arguments:
-		location -- the location of the serial connection
-		baud_rate -- the baud rate of the connection
-		timeout -- the timeout of the connection
-		
-		'''
+	def __init__(self):
 		self.exit = False
-		self.location = location
-		self.baud_rate = baud_rate
-		self.timeout = timeout
-		self.serial_dev = None
-		self.serial_data = None
-
 		#Ready the GPS variables
 		self.data_gps = {'lat': float(0.0), 'lon': float(0.0), 'speed': float(0.0), 'track': float(0.0), 'utc': '0.0', 'status': 'A'}
 		#Ready the depth variables
@@ -40,57 +22,15 @@ class NMEA0183():
 
 	def start(self):
 		'''
-		Creates a thread to read serial connection data.
+		Creates a thread to read NMEA0183 data.
 		'''
-		try:
-			self.serial_dev = serial.Serial(self.location, self.baud_rate, self.timeout)
-			serial_thread = Thread(None,self.read_thread,None,())
-			serial_thread.start()
-		except:
-			self.quit()
-
-	def read_thread(self):
-		'''
-		The thread used to read incoming serial data.
-		'''
-		dat_new = ''
-		dat_old = ''
-		#Loops until the connection is broken, or is instructed to quit
-		try:
-			while self.is_open():
-				#Instructed to quit
-				if self.exit: 
-					break
-				if dat_new: 
-					dat_old = dat_new
-					dat_new = ''
-				dat_old = dat_old + self.buffer()
-				if re.search("\r\n", dat_old):
-					try:
-						self.serial_data, dat_new = dat_old.split("\r\n")
-					except:
-						pass
-					#The checksum is correct, so the data will be deconstructed
-					if self.checksum(self.serial_data):
-						self.check_type()
-					dat_old = ''
-		except:
-			self.quit()
+                raise NotImplemented()
 
 	def is_open(self):
 		'''
-		Checks whether the serial connection is still open.
+		Checks whether the connection is still open.
 		'''
-		return self.serial_dev.isOpen()
-
-	def buffer(self):
-		'''
-		Creates a buffer for serial data reading. Avoids reading lines for better performance.
-		'''
-		dat_cur = self.serial_dev.read(1)
-		x = self.serial_dev.inWaiting()
-		if x: dat_cur = dat_cur + self.serial_dev.read(x)
-		return dat_cur
+		return True
 
 	def make_checksum(self,data):
 		'''
@@ -273,3 +213,114 @@ class NMEA0183():
 		Enables quiting the serial connection.
 		'''
 		self.exit = True
+
+
+class NMEA0183Serial(NMEA0183):
+        def __init__(self, location, baud_rate, timeout):
+		'''
+		Initiates variables.
+		
+		Keyword arguments:
+		location -- the location of the serial connection
+		baud_rate -- the baud rate of the connection
+		timeout -- the timeout of the connection
+		
+		'''
+                super().__init__()
+
+		self.location = location
+		self.baud_rate = baud_rate
+		self.timeout = timeout
+		self.serial_dev = None
+		self.serial_data = None
+
+	def start(self):
+		'''
+		Creates a thread to read serial connection data.
+		'''
+		try:
+                        import serial
+			self.serial_dev = serial.Serial(self.location, self.baud_rate, self.timeout)
+			serial_thread = Thread(None,self.read_thread,None,())
+			serial_thread.start()
+		except:
+			self.quit()
+
+	def read_thread(self):
+		'''
+		The thread used to read incoming serial data.
+		'''
+		dat_new = ''
+		dat_old = ''
+		#Loops until the connection is broken, or is instructed to quit
+		try:
+			while self.is_open():
+				#Instructed to quit
+				if self.exit: 
+					break
+				if dat_new: 
+					dat_old = dat_new
+					dat_new = ''
+				dat_old = dat_old + self.buffer()
+				if re.search("\r\n", dat_old):
+					try:
+						self.serial_data, dat_new = dat_old.split("\r\n")
+					except:
+						pass
+					#The checksum is correct, so the data will be deconstructed
+					if self.checksum(self.serial_data):
+						self.check_type()
+					dat_old = ''
+		except:
+			self.quit()
+
+	def is_open(self):
+		'''
+		Checks whether the serial connection is still open.
+		'''
+		return self.serial_dev.isOpen()
+
+	def buffer(self):
+		'''
+		Creates a buffer for serial data reading. Avoids reading lines for better performance.
+		'''
+		dat_cur = self.serial_dev.read(1)
+		x = self.serial_dev.inWaiting()
+		if x: dat_cur = dat_cur + self.serial_dev.read(x)
+		return dat_cur
+
+
+class NMEA0183File(NMEA0183):
+        def __init__(self, location):
+                '''
+                Initiates variables.
+                
+                Keyword arguments:
+                location -- the location of the dummy file
+                '''
+                super(NMEA0183File, self).__init__()
+
+                self.location = location
+		self.serial_data = None
+
+	def start(self):
+		'''
+		Creates a thread to read the file
+		'''
+		try:
+			serial_thread = Thread(None,self.read_thread,None,())
+			serial_thread.start()
+		except:
+			self.quit()
+
+	def read_thread(self):
+		'''
+		The thread used to read the file.
+		'''
+                try:
+                    with open(self.location, "r") as source_file:
+                        serial_data = source_file.readline()
+                        if self.checksum(line):
+                            self.check_type()
+                except:
+                    self.quit()
